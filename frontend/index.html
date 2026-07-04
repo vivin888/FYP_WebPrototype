@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="SignAvatar — Convert Indian Sign Language (ISL) videos into animated 3D sign-language avatars powered by AI pose estimation." />
+    <title>SignAvatar — ISL to 3D Avatar</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css" />
+
+    <!-- Three.js via importmap (ES modules) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+
+    <!-- ============ BACKGROUND CANVAS (particles) ============ -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- ============ HEADER ============ -->
+    <header id="app-header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 40 40" fill="none">
+                        <circle cx="20" cy="12" r="5" stroke="currentColor" stroke-width="2"/>
+                        <path d="M10 35 L14 22 L20 18 L26 22 L30 35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        <path d="M14 22 L6 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M26 22 L34 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <circle cx="6" cy="16" r="2" fill="currentColor"/>
+                        <circle cx="34" cy="14" r="2" fill="currentColor"/>
+                        <circle cx="5" cy="14" r="1" fill="currentColor" opacity="0.5"/>
+                        <circle cx="7" cy="14" r="1" fill="currentColor" opacity="0.5"/>
+                        <circle cx="33" cy="12" r="1" fill="currentColor" opacity="0.5"/>
+                        <circle cx="35" cy="12" r="1" fill="currentColor" opacity="0.5"/>
+                    </svg>
+                </div>
+                <h1 class="logo-text">Sign<span>Avatar</span></h1>
+            </div>
+            <p class="tagline">Indian Sign Language → 3D Avatar Reconstruction</p>
+        </div>
+    </header>
+
+    <!-- ============ MAIN ============ -->
+    <main id="app-main">
+
+        <!-- UPLOAD STATE -->
+        <section id="section-upload" class="section active">
+            <div class="upload-card glass-card">
+                <div class="upload-zone" id="upload-zone">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 64 64" fill="none">
+                            <rect x="8" y="14" width="48" height="36" rx="4" stroke="currentColor" stroke-width="2.5"/>
+                            <circle cx="32" cy="32" r="8" stroke="currentColor" stroke-width="2"/>
+                            <path d="M32 28 L32 36 M28 32 L36 32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="18" cy="22" r="2" fill="currentColor" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <h2>Upload Sign Language Video</h2>
+                    <p>Drag & drop your ISL video here, or click to browse</p>
+                    <p class="upload-formats">Supports MP4, WebM, AVI, MOV</p>
+                    <input type="file" id="file-input" accept="video/*" hidden />
+                </div>
+
+                <div class="upload-divider">
+                    <span>OR</span>
+                </div>
+
+                <button id="btn-demo" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                        <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+                    </svg>
+                    Try Demo Animation
+                </button>
+            </div>
+        </section>
+
+        <!-- PROCESSING STATE -->
+        <section id="section-processing" class="section">
+            <div class="processing-card glass-card">
+                <div class="processing-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring delay"></div>
+                    <div class="spinner-body">
+                        <svg viewBox="0 0 40 40" fill="none" width="40" height="40">
+                            <circle cx="20" cy="12" r="4" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M12 32 L15 22 L20 18 L25 22 L28 32" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                            <path d="M15 22 L8 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M25 22 L32 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <h2 id="processing-title">Processing Video…</h2>
+                <p id="processing-subtitle">Extracting pose & hand landmarks with MediaPipe</p>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+                <p class="processing-detail" id="processing-detail">Uploading…</p>
+            </div>
+        </section>
+
+        <!-- RESULT STATE -->
+        <section id="section-result" class="section">
+            <div class="result-layout">
+                <!-- Video panel -->
+                <div class="panel glass-card" id="panel-video">
+                    <div class="panel-header">
+                        <span class="panel-badge">INPUT</span>
+                        <h3>Original Video</h3>
+                    </div>
+                    <div class="panel-body">
+                        <video id="original-video" controls muted playsinline preload="auto"></video>
+                        <div class="panel-placeholder" id="video-placeholder">
+                            <p>Demo mode — no input video</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Avatar panel -->
+                <div class="panel glass-card" id="panel-avatar">
+                    <div class="panel-header">
+                        <span class="panel-badge accent">OUTPUT</span>
+                        <h3>SignAvatar</h3>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="avatar-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Playback controls -->
+            <div class="controls-bar glass-card" id="controls-bar">
+                <button id="btn-play" class="btn-icon" title="Play / Pause">
+                    <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+                        <polygon points="5,3 19,12 5,21"/>
+                    </svg>
+                    <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" width="22" height="22" style="display:none">
+                        <rect x="5" y="3" width="4" height="18" rx="1"/>
+                        <rect x="15" y="3" width="4" height="18" rx="1"/>
+                    </svg>
+                </button>
+                <button id="btn-restart" class="btn-icon" title="Restart">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <polyline points="1,4 1,10 7,10"/>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                    </svg>
+                </button>
+
+                <div class="timeline-wrapper">
+                    <input type="range" id="timeline-slider" min="0" max="100" value="0" step="0.1" />
+                    <div class="time-display">
+                        <span id="time-current">0:00</span>
+                        <span class="time-sep">/</span>
+                        <span id="time-total">0:00</span>
+                    </div>
+                </div>
+
+                <div class="speed-group">
+                    <label>Speed</label>
+                    <div class="speed-buttons">
+                        <button class="btn-speed" data-speed="0.5">0.5×</button>
+                        <button class="btn-speed active" data-speed="1">1×</button>
+                        <button class="btn-speed" data-speed="1.5">1.5×</button>
+                        <button class="btn-speed" data-speed="2">2×</button>
+                    </div>
+                </div>
+
+                <button id="btn-mirror" class="btn-icon" title="Mirror avatar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="12" y1="2" x2="12" y2="22"/>
+                        <polyline points="4,8 8,4 8,12"/>
+                        <polyline points="20,8 16,4 16,12"/>
+                    </svg>
+                </button>
+
+                <button id="btn-new" class="btn-icon" title="Upload new video">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-row" id="stats-row">
+                <div class="stat glass-card">
+                    <span class="stat-value" id="stat-frames">—</span>
+                    <span class="stat-label">Frames</span>
+                </div>
+                <div class="stat glass-card">
+                    <span class="stat-value" id="stat-fps">—</span>
+                    <span class="stat-label">FPS</span>
+                </div>
+                <div class="stat glass-card">
+                    <span class="stat-value" id="stat-duration">—</span>
+                    <span class="stat-label">Duration</span>
+                </div>
+                <div class="stat glass-card">
+                    <span class="stat-value" id="stat-landmarks">—</span>
+                    <span class="stat-label">Landmarks / Frame</span>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ============ Toast container ============ -->
+    <div id="toast-container"></div>
+
+    <!-- ============ Scripts (ES module) ============ -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
